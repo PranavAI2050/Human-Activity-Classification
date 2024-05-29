@@ -1,0 +1,454 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: human-activity-recognition-pipeline-
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.7.0, pipelines.kubeflow.org/pipeline_compilation_time: '2024-05-29T16:38:14.907656',
+    pipelines.kubeflow.org/pipeline_spec: '{"inputs": [{"name": "data_path", "type":
+      "String"}], "name": "Human Activity Recognition Pipeline"}'}
+  labels: {pipelines.kubeflow.org/kfp_sdk_version: 1.7.0}
+spec:
+  entrypoint: human-activity-recognition-pipeline
+  templates:
+  - name: clean-data
+    container:
+      args: [--executor_input, '{{$}}', --function_to_execute, clean_data, --path-output-path,
+        '{{inputs.parameters.data_path}}', --output-csv-output-path, /tmp/outputs/output_csv/data]
+      command:
+      - sh
+      - -c
+      - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet                 --no-warn-script-location
+        'pandas' 'openpyxl' 'scikit-learn' 'numpy' 'kfp==1.7.0' || PIP_DISABLE_PIP_VERSION_CHECK=1
+        python3 -m pip install --quiet                 --no-warn-script-location 'pandas'
+        'openpyxl' 'scikit-learn' 'numpy' 'kfp==1.7.0' --user) && "$0" "$@"
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp -d)
+        printf "%s" "$0" > "$program_path/ephemeral_component.py"
+        python3 -m kfp.components.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+      - |2+
+
+        from kfp.v2.dsl import *
+        from typing import *
+
+        def clean_data(path: str, output_csv: Output[Dataset]):
+
+            def convert_to_float(x):
+                try:
+                    return np.float(x)
+                except:
+                    return 0.0
+
+            column_names = ['user-id', 'activity', 'timestamp', 'x-acc', 'y-acc', 'z-acc']
+            df = pd.read_csv(path, header=None, names=column_names)
+            df['z-acc'].replace(regex=True, inplace=True, to_replace=r';', value=r'')
+            df['z-acc'] = df['z-acc'].apply(convert_to_float)
+
+            df.dropna(axis=0, how='any', inplace=True)
+            df.to_csv(output_csv.path, index=False)
+
+      image: python:3.8
+    inputs:
+      parameters:
+      - {name: data_path}
+    outputs:
+      artifacts:
+      - {name: clean-data-output_csv, path: /tmp/outputs/output_csv/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.7.0
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--executor_input", {"executorInput": null}, "--function_to_execute",
+          "clean_data", "--path-output-path", {"inputValue": "path"}, "--output-csv-output-path",
+          {"outputPath": "output_csv"}], "command": ["sh", "-c", "(PIP_DISABLE_PIP_VERSION_CHECK=1
+          python3 -m pip install --quiet                 --no-warn-script-location
+          ''pandas'' ''openpyxl'' ''scikit-learn'' ''numpy'' ''kfp==1.7.0'' || PIP_DISABLE_PIP_VERSION_CHECK=1
+          python3 -m pip install --quiet                 --no-warn-script-location
+          ''pandas'' ''openpyxl'' ''scikit-learn'' ''numpy'' ''kfp==1.7.0'' --user)
+          && \"$0\" \"$@\"", "sh", "-ec", "program_path=$(mktemp -d)\nprintf \"%s\"
+          \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+          "\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef clean_data(path:
+          str, output_csv: Output[Dataset]):\n\n    def convert_to_float(x):\n        try:\n            return
+          np.float(x)\n        except:\n            return 0.0\n\n    column_names
+          = [''user-id'', ''activity'', ''timestamp'', ''x-acc'', ''y-acc'', ''z-acc'']\n    df
+          = pd.read_csv(path, header=None, names=column_names)\n    df[''z-acc''].replace(regex=True,
+          inplace=True, to_replace=r'';'', value=r'''')\n    df[''z-acc''] = df[''z-acc''].apply(convert_to_float)\n\n    df.dropna(axis=0,
+          how=''any'', inplace=True)\n    df.to_csv(output_csv.path, index=False)\n\n"],
+          "image": "python:3.8"}}, "inputs": [{"name": "path", "type": "String"}],
+          "name": "Clean data", "outputs": [{"name": "output_csv", "type": "Dataset"}]}',
+        pipelines.kubeflow.org/component_ref: '{}', pipelines.kubeflow.org/arguments.parameters: '{"path":
+          "{{inputs.parameters.data_path}}"}'}
+  - name: eval-model
+    container:
+      args: [--executor_input, '{{$}}', --function_to_execute, eval_model, --input-model-output-path,
+        /tmp/inputs/input_model/data, --input-history-output-path, /tmp/inputs/input_history/data,
+        --input-test-x-output-path, /tmp/inputs/input_test_x/data, --input-test-y-output-path,
+        /tmp/inputs/input_test_y/data, --MLPipeline-Metrics-output-path, /tmp/outputs/MLPipeline_Metrics/data]
+      command:
+      - sh
+      - -c
+      - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet                 --no-warn-script-location
+        'tensorflow' 'pandas' 'kfp==1.7.0' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3
+        -m pip install --quiet                 --no-warn-script-location 'tensorflow'
+        'pandas' 'kfp==1.7.0' --user) && "$0" "$@"
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp -d)
+        printf "%s" "$0" > "$program_path/ephemeral_component.py"
+        python3 -m kfp.components.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+      - "\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef eval_model(\n   \
+        \ input_model: Input[Model], \n    input_history: Input[Artifact], \n    input_test_x:\
+        \ Input[Artifact], \n    input_test_y: Input[Artifact], \n    MLPipeline_Metrics:\
+        \ Output[Metrics]\n):\n    import tensorflow as tf\n    from tensorflow.keras.utils\
+        \ import to_categorical\n    import pickle\n\n    model = tf.keras.models.load_model(input_model.path)\n\
+        \n    with open(input_test_x.path, \"rb\") as file:\n        test_X = pickle.load(file)\n\
+        \n    with open(input_test_y.path, \"rb\") as file:\n        test_Y = pickle.load(file)\n\
+        \n    Y_one_hot = to_categorical(test_Y)\n\n    loss_value, accuracy = model.evaluate(test_X,\
+        \ Y_one_hot)\n    output_string = f\"Loss: {loss_value:.4f}, Accuracy: {accuracy:.4f}\"\
+        \n\n    MLPipeline_Metrics.log_metric(\"categorical_crossentropy_loss\", loss_value)\n\
+        \    MLPipeline_Metrics.log_metric(\"accuracy\", accuracy)\n\n"
+      image: python:3.7
+    inputs:
+      artifacts:
+      - {name: train-model-output_history, path: /tmp/inputs/input_history/data}
+      - {name: train-model-output_model, path: /tmp/inputs/input_model/data}
+      - {name: preprocess-data-output_test_x, path: /tmp/inputs/input_test_x/data}
+      - {name: preprocess-data-output_test_y, path: /tmp/inputs/input_test_y/data}
+    outputs:
+      artifacts:
+      - {name: mlpipeline-metrics, path: /tmp/outputs/MLPipeline_Metrics/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.7.0
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--executor_input", {"executorInput": null}, "--function_to_execute",
+          "eval_model", "--input-model-output-path", {"inputPath": "input_model"},
+          "--input-history-output-path", {"inputPath": "input_history"}, "--input-test-x-output-path",
+          {"inputPath": "input_test_x"}, "--input-test-y-output-path", {"inputPath":
+          "input_test_y"}, "--MLPipeline-Metrics-output-path", {"outputPath": "MLPipeline_Metrics"}],
+          "command": ["sh", "-c", "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip
+          install --quiet                 --no-warn-script-location ''tensorflow''
+          ''pandas'' ''kfp==1.7.0'' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m
+          pip install --quiet                 --no-warn-script-location ''tensorflow''
+          ''pandas'' ''kfp==1.7.0'' --user) && \"$0\" \"$@\"", "sh", "-ec", "program_path=$(mktemp
+          -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3
+          -m kfp.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+          "\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef eval_model(\n    input_model:
+          Input[Model], \n    input_history: Input[Artifact], \n    input_test_x:
+          Input[Artifact], \n    input_test_y: Input[Artifact], \n    MLPipeline_Metrics:
+          Output[Metrics]\n):\n    import tensorflow as tf\n    from tensorflow.keras.utils
+          import to_categorical\n    import pickle\n\n    model = tf.keras.models.load_model(input_model.path)\n\n    with
+          open(input_test_x.path, \"rb\") as file:\n        test_X = pickle.load(file)\n\n    with
+          open(input_test_y.path, \"rb\") as file:\n        test_Y = pickle.load(file)\n\n    Y_one_hot
+          = to_categorical(test_Y)\n\n    loss_value, accuracy = model.evaluate(test_X,
+          Y_one_hot)\n    output_string = f\"Loss: {loss_value:.4f}, Accuracy: {accuracy:.4f}\"\n\n    MLPipeline_Metrics.log_metric(\"categorical_crossentropy_loss\",
+          loss_value)\n    MLPipeline_Metrics.log_metric(\"accuracy\", accuracy)\n\n"],
+          "image": "python:3.7"}}, "inputs": [{"name": "input_model", "type": "Model"},
+          {"name": "input_history", "type": "Artifact"}, {"name": "input_test_x",
+          "type": "Artifact"}, {"name": "input_test_y", "type": "Artifact"}], "name":
+          "Eval model", "outputs": [{"name": "MLPipeline_Metrics", "type": "Metrics"}]}',
+        pipelines.kubeflow.org/component_ref: '{}'}
+  - name: human-activity-recognition-pipeline
+    inputs:
+      parameters:
+      - {name: data_path}
+    dag:
+      tasks:
+      - name: clean-data
+        template: clean-data
+        arguments:
+          parameters:
+          - {name: data_path, value: '{{inputs.parameters.data_path}}'}
+      - name: eval-model
+        template: eval-model
+        dependencies: [preprocess-data, train-model]
+        arguments:
+          artifacts:
+          - {name: preprocess-data-output_test_x, from: '{{tasks.preprocess-data.outputs.artifacts.preprocess-data-output_test_x}}'}
+          - {name: preprocess-data-output_test_y, from: '{{tasks.preprocess-data.outputs.artifacts.preprocess-data-output_test_y}}'}
+          - {name: train-model-output_history, from: '{{tasks.train-model.outputs.artifacts.train-model-output_history}}'}
+          - {name: train-model-output_model, from: '{{tasks.train-model.outputs.artifacts.train-model-output_model}}'}
+      - name: preprocess-data
+        template: preprocess-data
+        dependencies: [split-data]
+        arguments:
+          artifacts:
+          - {name: split-data-test_csv, from: '{{tasks.split-data.outputs.artifacts.split-data-test_csv}}'}
+          - {name: split-data-train_csv, from: '{{tasks.split-data.outputs.artifacts.split-data-train_csv}}'}
+      - name: split-data
+        template: split-data
+        dependencies: [clean-data]
+        arguments:
+          artifacts:
+          - {name: clean-data-output_csv, from: '{{tasks.clean-data.outputs.artifacts.clean-data-output_csv}}'}
+      - name: train-model
+        template: train-model
+        dependencies: [preprocess-data]
+        arguments:
+          artifacts:
+          - {name: preprocess-data-output_train_x, from: '{{tasks.preprocess-data.outputs.artifacts.preprocess-data-output_train_x}}'}
+          - {name: preprocess-data-output_train_y, from: '{{tasks.preprocess-data.outputs.artifacts.preprocess-data-output_train_y}}'}
+  - name: preprocess-data
+    container:
+      args: [--executor_input, '{{$}}', --function_to_execute, preprocess_data, --input-train-csv-output-path,
+        /tmp/inputs/input_train_csv/data, --input-test-csv-output-path, /tmp/inputs/input_test_csv/data,
+        --output-train-x-output-path, /tmp/outputs/output_train_x/data, --output-test-x-output-path,
+        /tmp/outputs/output_test_x/data, --output-train-y-output-path, /tmp/outputs/output_train_y/data,
+        --output-test-y-output-path, /tmp/outputs/output_test_y/data]
+      command:
+      - sh
+      - -c
+      - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet                 --no-warn-script-location
+        'pandas' 'numpy' 'scipy' 'scikit-learn' 'kfp==1.7.0' || PIP_DISABLE_PIP_VERSION_CHECK=1
+        python3 -m pip install --quiet                 --no-warn-script-location 'pandas'
+        'numpy' 'scipy' 'scikit-learn' 'kfp==1.7.0' --user) && "$0" "$@"
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp -d)
+        printf "%s" "$0" > "$program_path/ephemeral_component.py"
+        python3 -m kfp.components.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+      - "\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef preprocess_data(\n\
+        \    input_train_csv: Input[Dataset], \n    input_test_csv: Input[Dataset],\
+        \ \n    output_train_x: Output[Artifact], \n    output_test_x: Output[Artifact],\n\
+        \    output_train_y: Output[Artifact], \n    output_test_y: Output[Artifact]\n\
+        ):\n    from scipy import stats\n    from sklearn.preprocessing import MinMaxScaler,\
+        \ LabelEncoder\n    import numpy as np\n    import pandas as pd\n    import\
+        \ pickle\n\n    LABELS = ['Downstairs', 'Jogging', 'Sitting', 'Standing',\
+        \ 'Upstairs', 'Walking']\n    TIME_PERIODS = 80\n    STEP_DISTANCE = 40\n\
+        \    LABEL = 'activity'\n    N_FEATURES = 3\n    acc_cols = ['x-acc', 'y-acc',\
+        \ 'z-acc']\n\n    train = pd.read_csv(input_train_csv.path)\n    test = pd.read_csv(input_test_csv.path)\n\
+        \n    for col in acc_cols:\n        scaler = MinMaxScaler()\n        train[col]\
+        \ = scaler.fit_transform(train[[col]])\n        test[col] = scaler.transform(test[[col]])\n\
+        \n    label_encoder = LabelEncoder()\n    train.loc[:, LABEL] = label_encoder.fit_transform(train[LABEL].values.ravel())\n\
+        \    test.loc[:, LABEL] = label_encoder.transform(test[LABEL].values.ravel())\n\
+        \n    def create_segments_and_labels(df, time_period, step_distance, label_name):\n\
+        \        segments = []\n        labels = []\n        for i in range(0, len(df)\
+        \ - time_period, step_distance):\n            xs = df['x-acc'].values[i: i\
+        \ + time_period]\n            ys = df['y-acc'].values[i: i + time_period]\n\
+        \            zs = df['z-acc'].values[i: i + time_period]\n\n            label\
+        \ = stats.mode(df[label_name][i: i + time_period])[0][0]\n            segments.append([xs,\
+        \ ys, zs])\n            labels.append(label)\n        reshaped_segments =\
+        \ np.asarray(segments, dtype=np.float32).reshape(-1, time_period, N_FEATURES)\n\
+        \        labels = np.asarray(labels)\n        return reshaped_segments, labels\n\
+        \n    X_train, Y_train = create_segments_and_labels(train, TIME_PERIODS, STEP_DISTANCE,\
+        \ LABEL)\n    X_test, Y_test = create_segments_and_labels(test, TIME_PERIODS,\
+        \ STEP_DISTANCE, LABEL)\n\n    with open(output_train_x.path, 'wb') as f:\n\
+        \        pickle.dump(X_train, f)\n    with open(output_test_x.path, 'wb')\
+        \ as f:\n        pickle.dump(X_test, f)\n\n    with open(output_train_y.path,\
+        \ 'wb') as f:\n        pickle.dump(Y_train, f)\n    with open(output_test_y.path,\
+        \ 'wb') as f:\n        pickle.dump(Y_test, f)\n\n"
+      image: python:3.7
+    inputs:
+      artifacts:
+      - {name: split-data-test_csv, path: /tmp/inputs/input_test_csv/data}
+      - {name: split-data-train_csv, path: /tmp/inputs/input_train_csv/data}
+    outputs:
+      artifacts:
+      - {name: preprocess-data-output_test_x, path: /tmp/outputs/output_test_x/data}
+      - {name: preprocess-data-output_test_y, path: /tmp/outputs/output_test_y/data}
+      - {name: preprocess-data-output_train_x, path: /tmp/outputs/output_train_x/data}
+      - {name: preprocess-data-output_train_y, path: /tmp/outputs/output_train_y/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.7.0
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--executor_input", {"executorInput": null}, "--function_to_execute",
+          "preprocess_data", "--input-train-csv-output-path", {"inputPath": "input_train_csv"},
+          "--input-test-csv-output-path", {"inputPath": "input_test_csv"}, "--output-train-x-output-path",
+          {"outputPath": "output_train_x"}, "--output-test-x-output-path", {"outputPath":
+          "output_test_x"}, "--output-train-y-output-path", {"outputPath": "output_train_y"},
+          "--output-test-y-output-path", {"outputPath": "output_test_y"}], "command":
+          ["sh", "-c", "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet                 --no-warn-script-location
+          ''pandas'' ''numpy'' ''scipy'' ''scikit-learn'' ''kfp==1.7.0'' || PIP_DISABLE_PIP_VERSION_CHECK=1
+          python3 -m pip install --quiet                 --no-warn-script-location
+          ''pandas'' ''numpy'' ''scipy'' ''scikit-learn'' ''kfp==1.7.0'' --user) &&
+          \"$0\" \"$@\"", "sh", "-ec", "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\"
+          > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+          "\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef preprocess_data(\n    input_train_csv:
+          Input[Dataset], \n    input_test_csv: Input[Dataset], \n    output_train_x:
+          Output[Artifact], \n    output_test_x: Output[Artifact],\n    output_train_y:
+          Output[Artifact], \n    output_test_y: Output[Artifact]\n):\n    from scipy
+          import stats\n    from sklearn.preprocessing import MinMaxScaler, LabelEncoder\n    import
+          numpy as np\n    import pandas as pd\n    import pickle\n\n    LABELS =
+          [''Downstairs'', ''Jogging'', ''Sitting'', ''Standing'', ''Upstairs'', ''Walking'']\n    TIME_PERIODS
+          = 80\n    STEP_DISTANCE = 40\n    LABEL = ''activity''\n    N_FEATURES =
+          3\n    acc_cols = [''x-acc'', ''y-acc'', ''z-acc'']\n\n    train = pd.read_csv(input_train_csv.path)\n    test
+          = pd.read_csv(input_test_csv.path)\n\n    for col in acc_cols:\n        scaler
+          = MinMaxScaler()\n        train[col] = scaler.fit_transform(train[[col]])\n        test[col]
+          = scaler.transform(test[[col]])\n\n    label_encoder = LabelEncoder()\n    train.loc[:,
+          LABEL] = label_encoder.fit_transform(train[LABEL].values.ravel())\n    test.loc[:,
+          LABEL] = label_encoder.transform(test[LABEL].values.ravel())\n\n    def
+          create_segments_and_labels(df, time_period, step_distance, label_name):\n        segments
+          = []\n        labels = []\n        for i in range(0, len(df) - time_period,
+          step_distance):\n            xs = df[''x-acc''].values[i: i + time_period]\n            ys
+          = df[''y-acc''].values[i: i + time_period]\n            zs = df[''z-acc''].values[i:
+          i + time_period]\n\n            label = stats.mode(df[label_name][i: i +
+          time_period])[0][0]\n            segments.append([xs, ys, zs])\n            labels.append(label)\n        reshaped_segments
+          = np.asarray(segments, dtype=np.float32).reshape(-1, time_period, N_FEATURES)\n        labels
+          = np.asarray(labels)\n        return reshaped_segments, labels\n\n    X_train,
+          Y_train = create_segments_and_labels(train, TIME_PERIODS, STEP_DISTANCE,
+          LABEL)\n    X_test, Y_test = create_segments_and_labels(test, TIME_PERIODS,
+          STEP_DISTANCE, LABEL)\n\n    with open(output_train_x.path, ''wb'') as f:\n        pickle.dump(X_train,
+          f)\n    with open(output_test_x.path, ''wb'') as f:\n        pickle.dump(X_test,
+          f)\n\n    with open(output_train_y.path, ''wb'') as f:\n        pickle.dump(Y_train,
+          f)\n    with open(output_test_y.path, ''wb'') as f:\n        pickle.dump(Y_test,
+          f)\n\n"], "image": "python:3.7"}}, "inputs": [{"name": "input_train_csv",
+          "type": "Dataset"}, {"name": "input_test_csv", "type": "Dataset"}], "name":
+          "Preprocess data", "outputs": [{"name": "output_train_x", "type": "Artifact"},
+          {"name": "output_test_x", "type": "Artifact"}, {"name": "output_train_y",
+          "type": "Artifact"}, {"name": "output_test_y", "type": "Artifact"}]}', pipelines.kubeflow.org/component_ref: '{}'}
+  - name: split-data
+    container:
+      args: [--executor_input, '{{$}}', --function_to_execute, split_data, --input-csv-output-path,
+        /tmp/inputs/input_csv/data, --train-csv-output-path, /tmp/outputs/train_csv/data,
+        --test-csv-output-path, /tmp/outputs/test_csv/data]
+      command:
+      - sh
+      - -c
+      - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet                 --no-warn-script-location
+        'pandas' 'scikit-learn' 'kfp==1.7.0' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3
+        -m pip install --quiet                 --no-warn-script-location 'pandas'
+        'scikit-learn' 'kfp==1.7.0' --user) && "$0" "$@"
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp -d)
+        printf "%s" "$0" > "$program_path/ephemeral_component.py"
+        python3 -m kfp.components.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+      - "\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef split_data(input_csv:\
+        \ Input[Dataset], train_csv: Output[Dataset], test_csv: Output[Dataset]):\n\
+        \    import pandas as pd\n    from sklearn.model_selection import train_test_split\n\
+        \    df = pd.read_csv(input_csv.path)\n\n    total_rows = len(df)\n    split_index\
+        \ = int(0.7 * total_rows)\n\n    train_df = df.iloc[:split_index]   \n   \
+        \ test_df = df.iloc[split_index:] \n\n    train_df.to_csv(train_csv.path,\
+        \ index=False)\n    test_df.to_csv(test_csv.path, index=False)\n\n"
+      image: python:3.7
+    inputs:
+      artifacts:
+      - {name: clean-data-output_csv, path: /tmp/inputs/input_csv/data}
+    outputs:
+      artifacts:
+      - {name: split-data-test_csv, path: /tmp/outputs/test_csv/data}
+      - {name: split-data-train_csv, path: /tmp/outputs/train_csv/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.7.0
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--executor_input", {"executorInput": null}, "--function_to_execute",
+          "split_data", "--input-csv-output-path", {"inputPath": "input_csv"}, "--train-csv-output-path",
+          {"outputPath": "train_csv"}, "--test-csv-output-path", {"outputPath": "test_csv"}],
+          "command": ["sh", "-c", "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip
+          install --quiet                 --no-warn-script-location ''pandas'' ''scikit-learn''
+          ''kfp==1.7.0'' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install
+          --quiet                 --no-warn-script-location ''pandas'' ''scikit-learn''
+          ''kfp==1.7.0'' --user) && \"$0\" \"$@\"", "sh", "-ec", "program_path=$(mktemp
+          -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3
+          -m kfp.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+          "\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef split_data(input_csv:
+          Input[Dataset], train_csv: Output[Dataset], test_csv: Output[Dataset]):\n    import
+          pandas as pd\n    from sklearn.model_selection import train_test_split\n    df
+          = pd.read_csv(input_csv.path)\n\n    total_rows = len(df)\n    split_index
+          = int(0.7 * total_rows)\n\n    train_df = df.iloc[:split_index]   \n    test_df
+          = df.iloc[split_index:] \n\n    train_df.to_csv(train_csv.path, index=False)\n    test_df.to_csv(test_csv.path,
+          index=False)\n\n"], "image": "python:3.7"}}, "inputs": [{"name": "input_csv",
+          "type": "Dataset"}], "name": "Split data", "outputs": [{"name": "train_csv",
+          "type": "Dataset"}, {"name": "test_csv", "type": "Dataset"}]}', pipelines.kubeflow.org/component_ref: '{}'}
+  - name: train-model
+    container:
+      args: [--executor_input, '{{$}}', --function_to_execute, train_model, --input-train-x-output-path,
+        /tmp/inputs/input_train_x/data, --input-train-y-output-path, /tmp/inputs/input_train_y/data,
+        --output-model-output-path, /tmp/outputs/output_model/data, --output-history-output-path,
+        /tmp/outputs/output_history/data]
+      command:
+      - sh
+      - -c
+      - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet                 --no-warn-script-location
+        'tensorflow' 'pandas' 'kfp==1.7.0' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3
+        -m pip install --quiet                 --no-warn-script-location 'tensorflow'
+        'pandas' 'kfp==1.7.0' --user) && "$0" "$@"
+      - sh
+      - -ec
+      - |
+        program_path=$(mktemp -d)
+        printf "%s" "$0" > "$program_path/ephemeral_component.py"
+        python3 -m kfp.components.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+      - "\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef train_model(\n  \
+        \  input_train_x: Input[Artifact], \n    input_train_y: Input[Artifact], \n\
+        \    output_model: Output[Model], \n    output_history: Output[Artifact]\n\
+        ):\n    import tensorflow as tf\n    from tensorflow.keras import models,\
+        \ layers\n    from tensorflow.keras.utils import to_categorical\n    import\
+        \ pickle\n\n    with open(input_train_x.path, \"rb\") as file:\n        train_X\
+        \ = pickle.load(file)\n\n    with open(input_train_y.path, \"rb\") as file:\n\
+        \        train_Y = pickle.load(file)\n\n    Y_one_hot = to_categorical(train_Y)\n\
+        \n    def model_builder(train_X):\n        model = models.Sequential()\n \
+        \       model.add(layers.Conv1D(160, 12, input_shape=(train_X.shape[1], train_X.shape[2]),\
+        \ activation='relu'))\n        model.add(layers.Conv1D(128, 10, activation='relu'))\n\
+        \        model.add(layers.Conv1D(96, 8, activation='relu'))\n        model.add(layers.Conv1D(64,\
+        \ 6, activation='relu'))\n        model.add(layers.GlobalMaxPooling1D())\n\
+        \        model.add(layers.Dropout(0.5))\n        model.add(layers.Dense(6,\
+        \ activation='softmax'))\n        print(model.summary())\n        return model\n\
+        \n    model = model_builder(train_X)\n    model.compile(optimizer='rmsprop',\n\
+        \                  loss='categorical_crossentropy',\n                  metrics=['accuracy'])\n\
+        \n    history = model.fit(train_X, Y_one_hot, epochs=25, batch_size=1024)\n\
+        \    model.save(output_model.path)\n\n    with open(output_history.path, \"\
+        wb\") as file:\n        pickle.dump(history.history, file)\n\n"
+      image: python:3.7
+    inputs:
+      artifacts:
+      - {name: preprocess-data-output_train_x, path: /tmp/inputs/input_train_x/data}
+      - {name: preprocess-data-output_train_y, path: /tmp/inputs/input_train_y/data}
+    outputs:
+      artifacts:
+      - {name: train-model-output_history, path: /tmp/outputs/output_history/data}
+      - {name: train-model-output_model, path: /tmp/outputs/output_model/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.7.0
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"implementation": {"container":
+          {"args": ["--executor_input", {"executorInput": null}, "--function_to_execute",
+          "train_model", "--input-train-x-output-path", {"inputPath": "input_train_x"},
+          "--input-train-y-output-path", {"inputPath": "input_train_y"}, "--output-model-output-path",
+          {"outputPath": "output_model"}, "--output-history-output-path", {"outputPath":
+          "output_history"}], "command": ["sh", "-c", "(PIP_DISABLE_PIP_VERSION_CHECK=1
+          python3 -m pip install --quiet                 --no-warn-script-location
+          ''tensorflow'' ''pandas'' ''kfp==1.7.0'' || PIP_DISABLE_PIP_VERSION_CHECK=1
+          python3 -m pip install --quiet                 --no-warn-script-location
+          ''tensorflow'' ''pandas'' ''kfp==1.7.0'' --user) && \"$0\" \"$@\"", "sh",
+          "-ec", "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3
+          -m kfp.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+          "\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef train_model(\n    input_train_x:
+          Input[Artifact], \n    input_train_y: Input[Artifact], \n    output_model:
+          Output[Model], \n    output_history: Output[Artifact]\n):\n    import tensorflow
+          as tf\n    from tensorflow.keras import models, layers\n    from tensorflow.keras.utils
+          import to_categorical\n    import pickle\n\n    with open(input_train_x.path,
+          \"rb\") as file:\n        train_X = pickle.load(file)\n\n    with open(input_train_y.path,
+          \"rb\") as file:\n        train_Y = pickle.load(file)\n\n    Y_one_hot =
+          to_categorical(train_Y)\n\n    def model_builder(train_X):\n        model
+          = models.Sequential()\n        model.add(layers.Conv1D(160, 12, input_shape=(train_X.shape[1],
+          train_X.shape[2]), activation=''relu''))\n        model.add(layers.Conv1D(128,
+          10, activation=''relu''))\n        model.add(layers.Conv1D(96, 8, activation=''relu''))\n        model.add(layers.Conv1D(64,
+          6, activation=''relu''))\n        model.add(layers.GlobalMaxPooling1D())\n        model.add(layers.Dropout(0.5))\n        model.add(layers.Dense(6,
+          activation=''softmax''))\n        print(model.summary())\n        return
+          model\n\n    model = model_builder(train_X)\n    model.compile(optimizer=''rmsprop'',\n                  loss=''categorical_crossentropy'',\n                  metrics=[''accuracy''])\n\n    history
+          = model.fit(train_X, Y_one_hot, epochs=25, batch_size=1024)\n    model.save(output_model.path)\n\n    with
+          open(output_history.path, \"wb\") as file:\n        pickle.dump(history.history,
+          file)\n\n"], "image": "python:3.7"}}, "inputs": [{"name": "input_train_x",
+          "type": "Artifact"}, {"name": "input_train_y", "type": "Artifact"}], "name":
+          "Train model", "outputs": [{"name": "output_model", "type": "Model"}, {"name":
+          "output_history", "type": "Artifact"}]}', pipelines.kubeflow.org/component_ref: '{}'}
+  arguments:
+    parameters:
+    - {name: data_path}
+  serviceAccountName: pipeline-runner
