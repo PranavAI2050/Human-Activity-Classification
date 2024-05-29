@@ -242,5 +242,5 @@ def kfp_pipeline(data_path: str):
 
 
 #compiling the pipeline into yaml to run on kubeflow
-
-compiler.Compiler().compile(kfp_pipeline, 'pipeline.yaml')
+if __name__ == "__main__":
+    compiler.Compiler().compile(kfp_pipeline, 'pipeline.yaml')
